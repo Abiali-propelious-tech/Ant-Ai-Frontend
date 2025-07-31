@@ -44,6 +44,9 @@ export default function Sidebar() {
         <Link href="/chat" className="text-blue-700 hover:underline">
           Chat
         </Link>
+        <Link href="/projects" className="text-blue-700 hover:underline">
+          Projects
+        </Link>
       </nav>
       <button
         onClick={handleLogin}
