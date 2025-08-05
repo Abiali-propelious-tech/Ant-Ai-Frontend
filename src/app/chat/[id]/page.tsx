@@ -58,7 +58,7 @@ function ChatPage() {
   useEffect(() => {
     if (!jwt || !fileId) return;
     setGlobalError(null);
-    const historyUrl = `http://localhost:8000/api/v1/chat/history/${fileId}?page=1&limit=50`;
+    const historyUrl = `http://localhost:8000/api/v1/chat/history?file_id=${fileId}&page=1&limit=50`;
     fetch(historyUrl, {
       headers: {
         accept: "application/json",
@@ -76,13 +76,14 @@ function ChatPage() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${jwt}`,
             },
-            body: JSON.stringify({ fileId }),
+            body: JSON.stringify({ fileIds: [fileId] }),
           })
             .then((postRes) => postRes.json())
             .then((postData) => {
               if (postData.status === "success" && postData.conversationId) {
                 setConversationId(postData.conversationId);
                 setChatMessages([]);
+                return postData.conversationId;
               }
             });
         } else {
@@ -91,7 +92,14 @@ function ChatPage() {
           if (data && data.conversationId) {
             setConversationId(data.conversationId);
             setChatMessages(data.messages || []);
+            return data.conversationId;
           }
+        }
+      })
+      .then((convId) => {
+        // After getting conversation ID, fetch tags
+        if (convId) {
+          fetchTags(convId);
         }
       })
       .catch((err) => {
@@ -101,6 +109,68 @@ function ChatPage() {
         setGlobalLoading(false);
       });
   }, [jwt, fileId]);
+
+  // Fetch tags function (called after conversation is established)
+  const fetchTags = (convId: string) => {
+    if (!jwt) return;
+    setLoadingTags(true);
+    const tagsUrl = `http://localhost:8000/api/v1/tags/?page=1&limit=20&sort_by=Id&sort_order=asc`;
+    fetch(tagsUrl, {
+      headers: {
+        accept: "application/json",
+        Authorization: `Bearer ${jwt}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTags(data);
+        if (data && data.length > 0) {
+          setSelectedTag(data[0]);
+          // After setting the first tag, fetch prompts for it
+          fetchPrompts(data[0].Id, convId);
+        }
+      })
+      .catch(() => {
+        setGlobalError("Failed to load tags.");
+      })
+      .finally(() => {
+        setLoadingTags(false);
+      });
+  };
+
+  // Fetch prompts function (called after tag is selected)
+  const fetchPrompts = async (tagId: string, convId: string) => {
+    if (!jwt) return;
+    setLoadingPrompts(true);
+    fetch(
+      `http://localhost:8000/api/v1/prompt-templates/by-tag/${tagId}/conversation/${convId}`,
+      {
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${jwt}`,
+        },
+      }
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        setPrompts(Array.isArray(data) ? data : []);
+        if (Array.isArray(data) && data.length > 0) {
+          setSelectedPromptId(data[0].id);
+          setSelectedSingleModelId(data[0].single_model_list?.[0]?.id || null);
+          setSelectedBatchModelId(data[0].batch_model_list?.[0]?.id || null);
+        } else {
+          setSelectedPromptId(null);
+          setSelectedSingleModelId(null);
+          setSelectedBatchModelId(null);
+        }
+      })
+      .catch(() => {
+        setGlobalError("Failed to load prompts.");
+      })
+      .finally(() => {
+        setLoadingPrompts(false);
+      });
+  };
   // Send chat message or generate summary
   const handleSendChat = async (type: "message" | "summary") => {
     if (!conversationId || !jwt) return;
@@ -163,6 +233,7 @@ function ChatPage() {
       const data = await res.json();
       if (data && data.status === "success") {
         // Only add AI response to chatMessages
+
         setChatMessages((prev) => [
           ...prev,
           {
@@ -171,6 +242,9 @@ function ChatPage() {
             MessageType: type === "message" ? "ai_message" : "ai_summary",
           },
         ]);
+        if (type === "summary") {
+          fetchPrompts(selectedTag?.Id, conversationId);
+        }
       } else {
         setGlobalError(data?.detail || "API error.");
       }
@@ -184,68 +258,14 @@ function ChatPage() {
   };
 
   // Fetch tags on mount
-  useEffect(() => {
-    if (!jwt) return;
-    setLoadingTags(true);
-    const filters = [["IsActive", true]];
-    const filtersJson = encodeURIComponent(JSON.stringify(filters));
-    const tagsUrl = `http://localhost:8000/api/v1/tags/?page=1&limit=20&sort_by=Id&sort_order=asc`;
-    fetch(tagsUrl, {
-      headers: {
-        accept: "application/json",
-        Authorization: `Bearer ${jwt}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setTags(data);
-        if (data && data.length > 0) {
-          setSelectedTag(data[0]);
-        }
-      })
-      .catch(() => {
-        setGlobalError("Failed to load tags.");
-      })
-      .finally(() => {
-        setLoadingTags(false);
-      });
-  }, [jwt]);
 
-  // Fetch prompts when selectedTag changes
+  // Fetch prompts when selectedTag changes (now needs conversationId)
   useEffect(() => {
-    if (!selectedTag || !jwt) return;
-    setLoadingPrompts(true);
-    fetch(
-      `http://localhost:8000/api/v1/prompt-templates/by-tag/${selectedTag.Id}`,
-      {
-        headers: {
-          accept: "application/json",
-          Authorization: `Bearer ${jwt}`,
-        },
-      }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        setPrompts(Array.isArray(data) ? data : []);
-        if (Array.isArray(data) && data.length > 0) {
-          setSelectedPromptId(data[0].id);
-          setSelectedSingleModelId(data[0].single_model_list?.[0]?.id || null);
-          setSelectedBatchModelId(data[0].batch_model_list?.[0]?.id || null);
-        } else {
-          setSelectedPromptId(null);
-          setSelectedSingleModelId(null);
-          setSelectedBatchModelId(null);
-        }
-      })
-      .catch(() => {
-        setGlobalError("Failed to load prompts.");
-      })
-      .finally(() => {
-        setLoadingPrompts(false);
-      });
-  }, [selectedTag, jwt]);
+    if (!selectedTag || !jwt || !conversationId) return;
+    fetchPrompts(selectedTag.Id, conversationId);
+  }, [selectedTag, jwt, conversationId]);
 
-  if (loadingTags || loadingPrompts) {
+  if (loadingTags) {
     return (
       <div style={{ textAlign: "center", margin: "24px 0", fontWeight: 600 }}>
         Loading chat...
@@ -274,7 +294,14 @@ function ChatPage() {
         {tags?.map((tag) => (
           <button
             key={tag.Id}
-            onClick={() => setSelectedTag(tag)}
+            onClick={() => {
+              setSelectedTag(tag);
+              // Clear prompts when switching tags
+              setPrompts([]);
+              setSelectedPromptId(null);
+              setSelectedSingleModelId(null);
+              setSelectedBatchModelId(null);
+            }}
             style={{
               borderRadius: 999,
               padding: "6px 18px",
@@ -296,21 +323,27 @@ function ChatPage() {
       </div>
 
       {/* Select prompt template and AI model */}
-      <div style={{ display: "flex", gap: "5%", marginBottom: 16 }}>
-        <div
-          style={{ flex: "0 0 65%", display: "flex", flexDirection: "column" }}
-        >
-          <label
-            htmlFor="prompt-select"
-            style={{ fontWeight: 500, marginBottom: 6 }}
+
+      {loadingPrompts ? (
+        <div style={{ textAlign: "center", fontWeight: 600 }}>
+          Loading prompts...
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "5%", marginBottom: 16 }}>
+          <div
+            style={{
+              flex: "0 0 65%",
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            Select Prompt Template:
-          </label>
-          {loadingPrompts ? (
-            <div style={{ textAlign: "center", fontWeight: 600 }}>
-              Loading prompts...
-            </div>
-          ) : (
+            <label
+              htmlFor="prompt-select"
+              style={{ fontWeight: 500, marginBottom: 6 }}
+            >
+              Select Prompt Template:
+            </label>
+
             <select
               id="prompt-select"
               value={selectedPromptId || ""}
@@ -337,49 +370,53 @@ function ChatPage() {
                 </option>
               ))}
             </select>
-          )}
-        </div>
-        <div
-          style={{ flex: "0 0 30%", display: "flex", flexDirection: "column" }}
-        >
-          <label
-            htmlFor="model-select"
-            style={{ fontWeight: 500, marginBottom: 6 }}
-          >
-            Select AI Model:
-          </label>
-          <select
-            id="model-select"
-            value={selectedSingleModelId || ""}
-            onChange={(e) => setSelectedSingleModelId(e.target.value)}
+          </div>
+          <div
             style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid #ccc",
-              width: "100%",
+              flex: "0 0 30%",
+              display: "flex",
+              flexDirection: "column",
             }}
-            disabled={
-              !prompts.find((p) => p.id === selectedPromptId)?.single_model_list
-                ?.length
-            }
           >
-            {(
-              prompts.find((p) => p.id === selectedPromptId)
-                ?.single_model_list || []
-            ).length > 0 ? (
-              prompts
-                .find((p) => p.id === selectedPromptId)!
-                .single_model_list.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.modal_name} ({m.provider_name})
-                  </option>
-                ))
-            ) : (
-              <option value="">No models</option>
-            )}
-          </select>
+            <label
+              htmlFor="model-select"
+              style={{ fontWeight: 500, marginBottom: 6 }}
+            >
+              Select AI Model:
+            </label>
+            <select
+              id="model-select"
+              value={selectedSingleModelId || ""}
+              onChange={(e) => setSelectedSingleModelId(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid #ccc",
+                width: "100%",
+              }}
+              disabled={
+                !prompts.find((p) => p.id === selectedPromptId)
+                  ?.single_model_list?.length
+              }
+            >
+              {(
+                prompts.find((p) => p.id === selectedPromptId)
+                  ?.single_model_list || []
+              ).length > 0 ? (
+                prompts
+                  .find((p) => p.id === selectedPromptId)!
+                  .single_model_list.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.modal_name} ({m.provider_name})
+                    </option>
+                  ))
+              ) : (
+                <option value="">No models</option>
+              )}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Generate Summary Button */}
       <div style={{ marginBottom: 24 }}>
@@ -387,7 +424,10 @@ function ChatPage() {
           style={{
             padding: "14px 0",
             borderRadius: 8,
-            background: conversationId && selectedPromptId ? "#0070f3" : "#ccc",
+            background:
+              !conversationId || !selectedPromptId || sending || loadingPrompts
+                ? "#ccc"
+                : "#0070f3",
             color: "#fff",
             border: "none",
             fontWeight: 600,
@@ -396,7 +436,9 @@ function ChatPage() {
             width: "100%",
             display: "block",
           }}
-          disabled={!conversationId || !selectedPromptId || sending}
+          disabled={
+            !conversationId || !selectedPromptId || sending || loadingPrompts
+          }
           onClick={() => handleSendChat("summary")}
         >
           {sending ? "Generating..." : "Generate Summary"}
@@ -445,7 +487,7 @@ function ChatPage() {
                   color: "#222",
                   borderRadius: 12,
                   padding: "8px 16px",
-                  maxWidth: "70%",
+                  maxWidth: msg.MessageType === "ai_summary" ? "100%" : "70%",
                   fontSize: 15,
                   boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
                   wordBreak: "break-word",
@@ -461,10 +503,9 @@ function ChatPage() {
             </div>
           ))
         )}
-        {sendingMessage && (
+        {sendingMessage || sending ? (
           <div
             style={{
-              background: "#fff3cd",
               color: "#222",
               borderRadius: 12,
               padding: "8px 16px",
@@ -476,6 +517,8 @@ function ChatPage() {
           >
             loading...
           </div>
+        ) : (
+          <></>
         )}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
