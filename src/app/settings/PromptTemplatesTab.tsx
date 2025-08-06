@@ -31,7 +31,7 @@ export default function PromptTemplatesTab({
   // Fetch prompt templates
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/prompt-templates?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/prompt-templates/?page=${page}&limit=${limit}`, {
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })
       .then(async (res) => {

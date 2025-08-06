@@ -18,7 +18,7 @@ export default function TagsTab() {
   const { jwt } = useJwt();
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/tags?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/tags/?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })

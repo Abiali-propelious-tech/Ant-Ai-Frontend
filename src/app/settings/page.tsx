@@ -24,34 +24,7 @@ export default function SettingsPage() {
   const [tagMap, setTagMap] = useState<Record<string, string>>({});
   const [modelMap, setModelMap] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    fetch(`${BASE_URL}/api/v1/tags?page=1&limit=100`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to fetch tags");
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : data.items || [];
-        setTagOptions(items.map((t: any) => ({ value: t.Id, label: t.Name })));
-        setTagMap(Object.fromEntries(items.map((t: any) => [t.Id, t.Name])));
-      })
-      .catch(() => {
-        setTagOptions([]);
-        setTagMap({});
-      });
-    fetch(`${BASE_URL}/api/v1/aimodals?page=1&limit=100`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to fetch models");
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : data.items || [];
-        setModelOptions(
-          items.map((m: any) => ({ value: m.Id, label: m.Name }))
-        );
-        setModelMap(Object.fromEntries(items.map((m: any) => [m.Id, m.Name])));
-      })
-      .catch(() => {
-        setModelOptions([]);
-        setModelMap({});
-      });
-  }, []);
+ 
 
   return (
     <div className="max-w-4xl mx-auto py-10">

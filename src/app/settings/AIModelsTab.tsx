@@ -19,7 +19,7 @@ export default function AIModelsTab() {
   // Fetch AI models from backend
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/aimodals?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/aimodals/?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })
