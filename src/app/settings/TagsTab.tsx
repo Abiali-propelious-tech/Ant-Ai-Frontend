@@ -3,8 +3,9 @@ import { useJwt } from "../../context/JwtContext";
 import { TagForm } from "../../components/tag/TagForm";
 import { TagTable } from "../../components/tag/TagTable";
 import type { Tag } from "../../components/tag/types";
+import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "https://devant13pythonapi.datagainservices.com";
 
 export default function TagsTab() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -18,13 +19,13 @@ export default function TagsTab() {
   const { jwt } = useJwt();
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/tags/?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/tags?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch tags");
-        const data = await res.json();
+        const data = await handleApiResponseWithFallback(res, { items: [], total: 0 });
         if (Array.isArray(data)) {
           setTags(data);
           setTotal(data.length);
@@ -56,6 +57,7 @@ export default function TagsTab() {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
       });
       if (!res.ok) throw new Error("Delete failed");
+      await handleApiResponseWithFallback(res, null);
       setTags((prev) => prev.filter((t) => t.Id !== tag.Id));
       setTotal((prev) => prev - 1);
     } catch {
@@ -98,11 +100,11 @@ export default function TagsTab() {
           body: JSON.stringify(data),
         });
         if (!res.ok) throw new Error("Update failed");
-        const updated = await res.json();
+        const updated = await handleApiResponseWithFallback(res, editTag);
         setTags((prev) => prev.map((t) => (t.Id === editTag.Id ? updated : t)));
       } else {
         // Create
-        const res = await fetch(`${BASE_URL}/api/v1/tags/`, {
+        const res = await fetch(`${BASE_URL}/api/v1/tags`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -111,7 +113,7 @@ export default function TagsTab() {
           body: JSON.stringify(data),
         });
         if (!res.ok) throw new Error("Create failed");
-        const created = await res.json();
+        const created = await handleApiResponseWithFallback(res, data as Tag);
         setTags((prev) => [created, ...prev]);
         setTotal((prev) => prev + 1);
       }

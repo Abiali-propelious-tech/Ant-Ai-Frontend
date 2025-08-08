@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useJwt } from "@/context/JwtContext";
 
+
 interface Invite {
   inviteDetail: string;
   inviteePhoto: string | null;

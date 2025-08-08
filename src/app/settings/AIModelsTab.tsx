@@ -3,8 +3,9 @@ import { useJwt } from "../../context/JwtContext";
 import { AIModelForm } from "../../components/ai_model/AIModelForm";
 import { AIModelTable } from "../../components/ai_model/AIModelTable";
 import type { AIModel } from "../../components/ai_model/types";
+import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "https://devant13pythonapi.datagainservices.com";
 
 export default function AIModelsTab() {
   const [models, setModels] = useState<AIModel[]>([]);
@@ -19,13 +20,13 @@ export default function AIModelsTab() {
   // Fetch AI models from backend
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/aimodals/?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/aimodals?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch models");
-        const data = await res.json();
+        const data = await handleApiResponseWithFallback(res, { items: [], total: 0 });
         if (Array.isArray(data)) {
           setModels(data);
           setTotal(data.length);
@@ -57,6 +58,7 @@ export default function AIModelsTab() {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
       });
       if (!res.ok) throw new Error("Delete failed");
+      await handleApiResponseWithFallback(res, null);
       setModels((prev) => prev.filter((m) => m.Id !== model.Id));
       setTotal((prev) => prev - 1);
     } catch {
@@ -114,13 +116,13 @@ export default function AIModelsTab() {
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("Update failed");
-        const updated = await res.json();
+        const updated = await handleApiResponseWithFallback(res, editModel);
         setModels((prev) =>
           prev.map((m) => (m.Id === editModel.Id ? updated : m))
         );
       } else {
         // Create
-        const res = await fetch(`${BASE_URL}/api/v1/aimodals/`, {
+        const res = await fetch(`${BASE_URL}/api/v1/aimodals`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -129,7 +131,7 @@ export default function AIModelsTab() {
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("Create failed");
-        const created = await res.json();
+        const created = await handleApiResponseWithFallback(res, payload as AIModel);
         setModels((prev) => [created, ...prev]);
         setTotal((prev) => prev + 1);
       }

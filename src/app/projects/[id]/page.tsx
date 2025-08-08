@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { handleApiResponseWithFallback, handleStreamingResponse } from "../../../utils/apiResponseHandler";
 
 // --- Types ---
 type Model = {
@@ -167,7 +168,7 @@ export default function ProjectAudioListPage({
     const fetchConversation = async () => {
       try {
         const resolvedParams = await params;
-        const historyUrl = `http://localhost:8000/api/v1/chat/history?project_id=${resolvedParams.id}`;
+        const historyUrl = `https://devant13pythonapi.datagainservices.com/api/v1/chat/history?project_id=${resolvedParams.id}`;
         
         const res = await fetch(historyUrl, {
           method: "GET",
@@ -177,48 +178,32 @@ export default function ProjectAudioListPage({
           },
         });
 
-        if (res.status === 404) {
-          // If not found, create conversation
-          const postUrl = "http://localhost:8000/api/v1/chat/conversation";
-          const postRes = await fetch(postUrl, {
-            method: "POST",
-            headers: {
-              accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${jwt}`,
-            },
-            body: JSON.stringify({ projectId: resolvedParams.id }),
-          });
-          
-          const postData = await postRes.json();
-          if (postData.status === "success" && postData.conversationId) {
-            setConversationId(postData.conversationId);
-            setChatHistory([]);
-            setMessages([]);
-            setChatMessages([]);
-            return;
-          }
-        } else if (res.ok) {
-          const data = await res.json();
-          console.log("Chat history loaded:", data);
-          setChatHistory(data);
-          
-          // Set selected audio files if they exist in the response
-          if (data.fileIds && Array.isArray(data.fileIds)) {
-            setSelectedAudio(data.fileIds);
-          }
-          
-          // Convert chat history to messages format
-          const formattedMessages: Message[] = data.messages.map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: new Date(msg.timestamp || Date.now()),
-          }));
-          setMessages(formattedMessages);
-          setChatMessages(data.messages || []);
-          setConversationId(data.conversationId);
-          console.log("Messages set:", formattedMessages);
+        if (!res.ok) throw new Error("Failed to fetch chat history");
+        const data = await handleApiResponseWithFallback(res, { 
+          messages: [], 
+          pagination: null, 
+          conversationId: null, 
+          fileIds: [] 
+        });
+        
+        console.log("Chat history loaded:", data);
+        setChatHistory(data.messages || []);
+        
+        // Set selected audio files if they exist in the response
+        if (data.fileIds && Array.isArray(data.fileIds)) {
+          setSelectedAudio(data.fileIds);
         }
+        
+        // Convert chat history to messages format
+        const formattedMessages: Message[] = data.messages.map((msg: any) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp || Date.now()),
+        }));
+        setMessages(formattedMessages);
+        setChatMessages(data.messages || []);
+        setConversationId(data.conversationId);
+        console.log("Messages set:", formattedMessages);
       } catch (err: any) {
         console.error("Failed to fetch chat history:", err);
       } finally {
@@ -235,7 +220,7 @@ export default function ProjectAudioListPage({
     if (!jwt) return;
     setLoadingPrompts(true);
     fetch(
-      `http://localhost:8000/api/v1/prompt-templates/conversation/${convId}`,
+      `https://devant13pythonapi.datagainservices.com/api/v1/prompt-templates/conversation/${convId}`,
       {
         headers: {
           accept: "application/json",
@@ -243,7 +228,7 @@ export default function ProjectAudioListPage({
         },
       }
     )
-      .then((res) => res.json())
+      .then((res) => handleApiResponseWithFallback<PromptTemplate[]>(res, []))
       .then((data) => {
         setPrompts(Array.isArray(data) ? data : []);
         if (Array.isArray(data) && data.length > 0) {
@@ -283,19 +268,19 @@ export default function ProjectAudioListPage({
 
     console.log("Selected audio:", updatedSelectedAudio);
     const updateConversation = async () => {
-      const res = await fetch("http://localhost:8000/api/v1/chat/update-conversation", {
+      const res = await fetch("https://devant13pythonapi.datagainservices.com/api/v1/chat/update-conversation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${jwt}`,
         },
         body: JSON.stringify({
-          conversationId: "8F8D276B-9243-40E5-B316-A55AC7B869E6",
+          conversationId: conversationId,
           fileIds: updatedSelectedAudio,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await handleApiResponseWithFallback(res, null);
       console.log("Conversation updated:", data);
     };
     updateConversation();
@@ -351,9 +336,9 @@ export default function ProjectAudioListPage({
     try {
       let url: string;
       if (type === "message") {
-        url = `http://localhost:8000/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
+        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
       } else {
-        url = `http://localhost:8000/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
+        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
       }
 
       const response = await fetch(url, {

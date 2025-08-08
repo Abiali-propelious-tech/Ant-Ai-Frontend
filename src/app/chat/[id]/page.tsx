@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { handleApiResponseWithFallback, handleStreamingResponse } from "../../../utils/apiResponseHandler";
 
 // --- Types ---
 type Model = {
@@ -76,7 +77,7 @@ function ChatPage() {
   useEffect(() => {
     if (!jwt || !fileId) return;
     setGlobalError(null);
-    const historyUrl = `http://localhost:8000/api/v1/chat/history?file_id=${fileId}&page=1&limit=50`;
+    const historyUrl = `https://devant13pythonapi.datagainservices.com/api/v1/chat/history?file_id=${fileId}&page=1&limit=50`;
     fetch(historyUrl, {
       headers: {
         accept: "application/json",
@@ -84,37 +85,20 @@ function ChatPage() {
       },
     })
       .then(async (res) => {
-        if (res.status === 404) {
-          // If not found, create conversation
-          const postUrl = "http://localhost:8000/api/v1/chat/conversation";
-          return fetch(postUrl, {
-            method: "POST",
-            headers: {
-              accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${jwt}`,
-            },
-            body: JSON.stringify({ fileIds: [fileId] }),
-          })
-            .then((postRes) => postRes.json())
-            .then((postData) => {
-              if (postData.status === "success" && postData.conversationId) {
-                setConversationId(postData.conversationId);
-                setChatMessages([]);
-                return postData.conversationId;
-              }
-            });
-        } else {
-          // If found, set conversationId and messages from response
-          const data = await res.json();
-          if (data && data.conversationId) {
-            setConversationId(data.conversationId);
-            setChatMessages(data.messages || []);
-            return data.conversationId;
-          }
+        if (!res.ok) throw new Error("Failed to fetch chat history");
+        const data = await handleApiResponseWithFallback(res, { 
+          messages: [], 
+          pagination: null, 
+          conversationId: null, 
+          fileIds: [] 
+        });
+        
+        if (data && data.conversationId) {
+          setConversationId(data.conversationId);
+          setChatMessages(data.messages || []);
+          return data.conversationId;
         }
       })
-
       .catch((err) => {
         setGlobalError("Failed to load chat history.");
       })
@@ -128,7 +112,7 @@ function ChatPage() {
     if (!jwt) return;
     setLoadingPrompts(true);
     fetch(
-      `http://localhost:8000/api/v1/prompt-templates/conversation/${convId}`,
+      `https://devant13pythonapi.datagainservices.com/api/v1/prompt-templates/conversation/${convId}`,
       {
         headers: {
           accept: "application/json",
@@ -136,7 +120,7 @@ function ChatPage() {
         },
       }
     )
-      .then((res) => res.json())
+      .then((res) => handleApiResponseWithFallback<PromptTemplate[]>(res, []))
       .then((data) => {
         setPrompts(Array.isArray(data) ? data : []);
         if (Array.isArray(data) && data.length > 0) {
@@ -206,9 +190,9 @@ function ChatPage() {
     try {
       let url: string;
       if (type === "message") {
-        url = `http://localhost:8000/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
+        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
       } else {
-        url = `http://localhost:8000/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
+        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
       }
 
       const response = await fetch(url, {

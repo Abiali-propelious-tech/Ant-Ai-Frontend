@@ -3,8 +3,9 @@ import { useJwt } from "../../context/JwtContext";
 import { PromptTemplateForm } from "../../components/prompt_template/PromptTemplateForm";
 import { PromptTemplateTable } from "../../components/prompt_template/PromptTemplateTable";
 import type { PromptTemplate } from "../../components/prompt_template/types";
+import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "https://devant13pythonapi.datagainservices.com";
 
 interface PromptTemplatesTabProps {
   tagOptions: { value: string; label: string }[];
@@ -19,6 +20,10 @@ export default function PromptTemplatesTab({
   tagMap,
   modelMap,
 }: PromptTemplatesTabProps) {
+
+  console.log("🚀 ~ PromptTemplatesTab ~ tagMap:", tagMap);
+  console.log("🚀 ~ PromptTemplatesTab ~ modelMap:", modelMap);
+
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -31,12 +36,12 @@ export default function PromptTemplatesTab({
   // Fetch prompt templates
   useEffect(() => {
     setLoading(true);
-    fetch(`${BASE_URL}/api/v1/prompt-templates/?page=${page}&limit=${limit}`, {
+    fetch(`${BASE_URL}/api/v1/prompt-templates?page=${page}&limit=${limit}`, {
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch prompt templates");
-        const data = await res.json();
+        const data = await handleApiResponseWithFallback(res, { items: [], total: 0 });
         if (Array.isArray(data)) {
           setTemplates(data);
           setTotal(data.length);
@@ -73,6 +78,7 @@ export default function PromptTemplatesTab({
         }
       );
       if (!res.ok) throw new Error("Delete failed");
+      await handleApiResponseWithFallback(res, null);
       setTemplates((prev) => prev.filter((t) => t.Id !== template.Id));
       setTotal((prev) => prev - 1);
     } catch {
@@ -96,6 +102,7 @@ export default function PromptTemplatesTab({
         }
       );
       if (!res.ok) throw new Error("Status update failed");
+      await handleApiResponseWithFallback(res, null);
       setTemplates((prev) =>
         prev.map((t) =>
           t.Id === template.Id ? { ...t, IsActive: !t.IsActive } : t
@@ -133,13 +140,13 @@ export default function PromptTemplatesTab({
           }
         );
         if (!res.ok) throw new Error("Update failed");
-        const updated = await res.json();
+        const updated = await handleApiResponseWithFallback(res, editTemplate);
         setTemplates((prev) =>
           prev.map((t) => (t.Id === editTemplate.Id ? updated : t))
         );
       } else {
         // Create
-        const res = await fetch(`${BASE_URL}/api/v1/prompt-templates/`, {
+        const res = await fetch(`${BASE_URL}/api/v1/prompt-templates`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -148,7 +155,7 @@ export default function PromptTemplatesTab({
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("Create failed");
-        const created = await res.json();
+        const created = await handleApiResponseWithFallback(res, payload as PromptTemplate);
         setTemplates((prev) => [created, ...prev]);
         setTotal((prev) => prev + 1);
       }
