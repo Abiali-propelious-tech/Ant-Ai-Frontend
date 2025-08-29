@@ -8,7 +8,7 @@ import PromptTemplatesTab from "./PromptTemplatesTab";
 import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 import { useJwt } from "../../context/JwtContext";
 
-const BASE_URL = "https://devant13pythonapi.datagainservices.com";
+const BASE_URL = "http://localhost:8000";
 const TABS = [
   { key: "tags", label: "Tags" },
   { key: "ai_models", label: "AI Models" },

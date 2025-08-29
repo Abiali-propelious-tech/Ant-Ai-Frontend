@@ -5,7 +5,7 @@ import { TagTable } from "../../components/tag/TagTable";
 import type { Tag } from "../../components/tag/types";
 import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "https://devant13pythonapi.datagainservices.com";
+const BASE_URL = "http://localhost:8000";
 
 export default function TagsTab() {
   const [tags, setTags] = useState<Tag[]>([]);

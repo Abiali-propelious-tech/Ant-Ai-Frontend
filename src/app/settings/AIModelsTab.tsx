@@ -5,7 +5,7 @@ import { AIModelTable } from "../../components/ai_model/AIModelTable";
 import type { AIModel } from "../../components/ai_model/types";
 import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "https://devant13pythonapi.datagainservices.com";
+const BASE_URL = "http://localhost:8000";
 
 export default function AIModelsTab() {
   const [models, setModels] = useState<AIModel[]>([]);

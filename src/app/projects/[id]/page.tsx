@@ -168,7 +168,7 @@ export default function ProjectAudioListPage({
     const fetchConversation = async () => {
       try {
         const resolvedParams = await params;
-        const historyUrl = `https://devant13pythonapi.datagainservices.com/api/v1/chat/history?project_id=${resolvedParams.id}`;
+        const historyUrl = `http://localhost:8000/api/v1/chat/history?project_id=${resolvedParams.id}`;
         
         const res = await fetch(historyUrl, {
           method: "GET",
@@ -220,7 +220,7 @@ export default function ProjectAudioListPage({
     if (!jwt) return;
     setLoadingPrompts(true);
     fetch(
-      `https://devant13pythonapi.datagainservices.com/api/v1/prompt-templates/conversation/${convId}`,
+      `http://localhost:8000/api/v1/prompt-templates/conversation/${convId}`,
       {
         headers: {
           accept: "application/json",
@@ -268,7 +268,7 @@ export default function ProjectAudioListPage({
 
     console.log("Selected audio:", updatedSelectedAudio);
     const updateConversation = async () => {
-      const res = await fetch("https://devant13pythonapi.datagainservices.com/api/v1/chat/update-conversation", {
+      const res = await fetch("http://localhost:8000/api/v1/chat/update-conversation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -336,9 +336,9 @@ export default function ProjectAudioListPage({
     try {
       let url: string;
       if (type === "message") {
-        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
+        url = `http://localhost:8000/api/v1/chat/chat?model_id=FCC6CC60-3494-419A-A23C-F5C77F1E5E2F&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
       } else {
-        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
+        url = `http://localhost:8000/api/v1/chat/chat?model_id=FCC6CC60-3494-419A-A23C-F5C77F1E5E2F&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
       }
 
       const response = await fetch(url, {

@@ -3,7 +3,10 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { handleApiResponseWithFallback, handleStreamingResponse } from "../../../utils/apiResponseHandler";
+import {
+  handleApiResponseWithFallback,
+  handleStreamingResponse,
+} from "../../../utils/apiResponseHandler";
 
 // --- Types ---
 type Model = {
@@ -39,6 +42,7 @@ import { useJwt } from "@/context/JwtContext";
 import { useParams } from "next/navigation";
 import { send } from "process";
 import { use } from "react";
+import { DownloadIcon } from "lucide-react";
 
 function ChatPage() {
   // Chat UI state
@@ -58,17 +62,21 @@ function ChatPage() {
   >(null);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  
+
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingData, setStreamingData] = useState("");
   const [citations, setCitations] = useState<Citation[]>([]);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
-  
+  const [abortController, setAbortController] =
+    useState<AbortController | null>(null);
+  const [streamingStartTime, setStreamingStartTime] = useState<Date | null>(
+    null
+  );
+
   // Auto-scroll ref
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const params = useParams();
   const fileId = useMemo(() => params.id as string, [params]);
   console.log("🚀 ~ page.tsx:45 ~ ChatPage ~ params:", params.id);
@@ -77,7 +85,7 @@ function ChatPage() {
   useEffect(() => {
     if (!jwt || !fileId) return;
     setGlobalError(null);
-    const historyUrl = `https://devant13pythonapi.datagainservices.com/api/v1/chat/history?file_id=${fileId}&page=1&limit=50`;
+    const historyUrl = `http://localhost:8000/api/v1/chat/history?file_id=${fileId}&page=1&limit=50`;
     fetch(historyUrl, {
       headers: {
         accept: "application/json",
@@ -86,13 +94,13 @@ function ChatPage() {
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch chat history");
-        const data = await handleApiResponseWithFallback(res, { 
-          messages: [], 
-          pagination: null, 
-          conversationId: null, 
-          fileIds: [] 
+        const data = await handleApiResponseWithFallback(res, {
+          messages: [],
+          pagination: null,
+          conversationId: null,
+          fileIds: [],
         });
-        
+
         if (data && data.conversationId) {
           setConversationId(data.conversationId);
           setChatMessages(data.messages || []);
@@ -112,7 +120,7 @@ function ChatPage() {
     if (!jwt) return;
     setLoadingPrompts(true);
     fetch(
-      `https://devant13pythonapi.datagainservices.com/api/v1/prompt-templates/conversation/${convId}`,
+      `http://localhost:8000/api/v1/prompt-templates/conversation/${convId}?is_filtered=false`,
       {
         headers: {
           accept: "application/json",
@@ -167,6 +175,7 @@ function ChatPage() {
           Id: Math.random().toString(),
           Content: chatInput,
           MessageType: "human_message",
+          CreatedAt: new Date().toISOString(),
         },
       ]);
     } else {
@@ -178,6 +187,7 @@ function ChatPage() {
     setCitations([]);
     setSuggestedQuestions([]);
     setGlobalError(null);
+    setStreamingStartTime(new Date());
 
     // Clear input after adding human message
     if (type === "message") {
@@ -190,9 +200,11 @@ function ChatPage() {
     try {
       let url: string;
       if (type === "message") {
-        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&query=${encodeURIComponent(chatInput)}`;
+        url = `http://localhost:8000/api/v1/chat/chat?model_id=FCC6CC60-3494-419A-A23C-F5C77F1E5E2F&conversation_id=${conversationId}&query=${encodeURIComponent(
+          chatInput
+        )}`;
       } else {
-        url = `https://devant13pythonapi.datagainservices.com/api/v1/chat/chat?model_id=7404688b-ff16-4677-a70a-ffe88fdf03ce&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
+        url = `http://localhost:8000/api/v1/chat/chat?model_id=FCC6CC60-3494-419A-A23C-F5C77F1E5E2F&conversation_id=${conversationId}&prompt_id=${selectedPromptId}`;
       }
 
       const response = await fetch(url, {
@@ -245,6 +257,7 @@ function ChatPage() {
                   MessageType: type === "message" ? "ai_message" : "ai_summary",
                   Citations: currentCitations,
                   SuggestedQuestions: suggestedQuestions,
+                  CreatedAt: new Date().toISOString(),
                 },
               ]);
 
@@ -255,6 +268,7 @@ function ChatPage() {
               // Keep citations and suggestions visible after stream ends
               setIsStreaming(false);
               setAbortController(null);
+              setStreamingStartTime(null);
               return;
             }
 
@@ -266,6 +280,7 @@ function ChatPage() {
                 toast.error(parsed.error || "An error occurred");
                 setIsStreaming(false);
                 setAbortController(null);
+                setStreamingStartTime(null);
                 return;
               } else if (parsed.status === "success") {
                 fullText += parsed.data;
@@ -313,6 +328,7 @@ function ChatPage() {
       setSendingMessage(false);
       setGlobalLoading(false);
       setAbortController(null);
+      setStreamingStartTime(null);
     }
   };
 
@@ -327,7 +343,8 @@ function ChatPage() {
   // Auto-scroll function
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
   };
 
@@ -352,13 +369,34 @@ function ChatPage() {
     };
   }, [abortController]);
 
-
+  const handleDownload = () => {
+    fetch(
+      `http://localhost:8000/api/v1/chat/export-chat-or-summary?conversation_id=${conversationId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      }
+    )
+      .then((response) => response.blob())
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chat_history_${conversationId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+  };
 
   return (
     <div style={{ padding: 24, maxWidth: 600, margin: "0 auto" }}>
       <style jsx>{`
         @keyframes bounce {
-          0%, 80%, 100% {
+          0%,
+          80%,
+          100% {
             transform: scale(0);
           }
           40% {
@@ -366,7 +404,15 @@ function ChatPage() {
           }
         }
       `}</style>
-      <h2>AI Research Assistant</h2>
+      <div className="flex justify-between items-center">
+        <h2>AI Research Assistant</h2>
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded-md"
+          onClick={handleDownload}
+        >
+          <DownloadIcon />
+        </button>
+      </div>
       {globalError && (
         <div
           style={{
@@ -379,8 +425,6 @@ function ChatPage() {
           {globalError}
         </div>
       )}
-
-
 
       {/* Select prompt template and AI model */}
 
@@ -559,21 +603,48 @@ function ChatPage() {
                   <>
                     <ReactMarkdown>{msg.Content}</ReactMarkdown>
                     {msg.Citations && msg.Citations.length > 0 && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #eee" }}>
-                        <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Citations:</div>
-                        <ul style={{ fontSize: 12, color: "#666", margin: 0, paddingLeft: 16 }}>
-                          {msg.Citations.map((citation: Citation, index: number) => (
-                            <li key={index}>
-                              <strong>Source:</strong> {citation.source}
-                            </li>
-                          ))}
+                      <div
+                        style={{
+                          marginTop: 8,
+                          paddingTop: 8,
+                          borderTop: "1px solid #eee",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#666",
+                            marginBottom: 4,
+                          }}
+                        >
+                          Citations:
+                        </div>
+                        <ul
+                          style={{
+                            fontSize: 12,
+                            color: "#666",
+                            margin: 0,
+                            paddingLeft: 16,
+                          }}
+                        >
+                          {msg.Citations.map(
+                            (citation: Citation, index: number) => (
+                              <li key={index}>
+                                <strong>Source:</strong> {citation.source}
+                              </li>
+                            )
+                          )}
                         </ul>
                       </div>
                     )}
-
                   </>
                 ) : (
                   msg.Content
+                )}
+                {msg.CreatedAt && (
+                  <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                    {new Date(msg.CreatedAt).toLocaleTimeString()}
+                  </div>
                 )}
               </div>
             </div>
@@ -602,9 +673,24 @@ function ChatPage() {
             >
               <ReactMarkdown>{streamingData}</ReactMarkdown>
               {citations.length > 0 && (
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #eee" }}>
-                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Citations:</div>
-                  <ul style={{ fontSize: 12, color: "#666", margin: 0, paddingLeft: 16 }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: "1px solid #eee",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                    Citations:
+                  </div>
+                  <ul
+                    style={{
+                      fontSize: 12,
+                      color: "#666",
+                      margin: 0,
+                      paddingLeft: 16,
+                    }}
+                  >
                     {citations.map((citation, index) => (
                       <li key={index}>
                         <strong>Source:</strong> {citation.source}
@@ -613,7 +699,11 @@ function ChatPage() {
                   </ul>
                 </div>
               )}
-
+              <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                {streamingStartTime
+                  ? streamingStartTime.toLocaleTimeString()
+                  : new Date().toLocaleTimeString()}
+              </div>
             </div>
           </div>
         )}
@@ -641,11 +731,42 @@ function ChatPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <div style={{ width: 8, height: 8, backgroundColor: "#666", borderRadius: "50%", animation: "bounce 1s infinite" }}></div>
-                  <div style={{ width: 8, height: 8, backgroundColor: "#666", borderRadius: "50%", animation: "bounce 1s infinite", animationDelay: "0.1s" }}></div>
-                  <div style={{ width: 8, height: 8, backgroundColor: "#666", borderRadius: "50%", animation: "bounce 1s infinite", animationDelay: "0.2s" }}></div>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      backgroundColor: "#666",
+                      borderRadius: "50%",
+                      animation: "bounce 1s infinite",
+                    }}
+                  ></div>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      backgroundColor: "#666",
+                      borderRadius: "50%",
+                      animation: "bounce 1s infinite",
+                      animationDelay: "0.1s",
+                    }}
+                  ></div>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      backgroundColor: "#666",
+                      borderRadius: "50%",
+                      animation: "bounce 1s infinite",
+                      animationDelay: "0.2s",
+                    }}
+                  ></div>
                 </div>
-                <span style={{ fontSize: 14, color: "#666" }}>AI is thinking...</span>
+                <span style={{ fontSize: 14, color: "#666" }}>
+                  AI is thinking...
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                {new Date().toLocaleTimeString()}
               </div>
             </div>
           </div>
@@ -741,7 +862,7 @@ function ChatPage() {
           </button>
         )}
       </div>
-      
+
       <ToastContainer
         position="top-right"
         autoClose={5000}

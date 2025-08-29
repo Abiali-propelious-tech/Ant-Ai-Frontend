@@ -5,7 +5,7 @@ import { PromptTemplateTable } from "../../components/prompt_template/PromptTemp
 import type { PromptTemplate } from "../../components/prompt_template/types";
 import { handleApiResponseWithFallback } from "../../utils/apiResponseHandler";
 
-const BASE_URL = "https://devant13pythonapi.datagainservices.com";
+const BASE_URL = "http://localhost:8000";
 
 interface PromptTemplatesTabProps {
   tagOptions: { value: string; label: string }[];
